@@ -5,150 +5,128 @@ app.use(express.static('public'));
 const port = process.env.PORT || 5500;
 const path = require('path'); // Helps with file paths
 const cookieparser = require('cookie-parser');
-app.use(cookieparser());
+app.use(cookieparser('myseceret'));
 // // Middleware 1
-// // that the Error handling middleware works
-// app.get('/hello/', (req, res) => {
-//     if (req.query.id == undefined) { // req.query.id  -> Means id is the parameters that should sent!
-//         req.myError = { reason: "You should provide id!", isClient: true };
-//         throw Error();
-//     }
-//     if (req.query.index == undefined) { // req.query.index  -> Means index is the parameters that should sent!
-//         req.myError = { reason: "You should provide index!", isClient: true };
-//         throw Error();
-//     }
+app.use((req, res, next) => {
+    if (req.cookies.isActive && (req.cookies.isActive > req.cookies.isActive + (2 * 60 * 1000))) {
+        res.cookie('isActive', Date.now()); // Create another cookie
+        console.log("Cookie");
 
-//     res.send("hello");
-// });
+    } else {
+        res.clearCookie('isActive');
+    }
 
-// // Error handling middleware
-// // This captures all kind of errors
-// app.use(function (err, req, res, next) {
-//     if (req.myError.isClient) {
-//         res.status(400).send(req.myError.reason);
-//     }
-//     else {
-//         res.status(500).send(req.myError.reason);
-//     }
-// });
+    next(); // This is the most important state! it that is missing the server will stuck here!!
+});
 
-// // Middleware 2
+// // Middleware 2 - Path to - P1 / P2
+app.use((req, res, next) => {
+    const cookieConfig1 = {
+        // do not allow accessing cookie in client side js
+        // (using document.cookie)
+        //httpOnly: true,
+        //secure: true, // send only over https 
+        // ttl in seconds (without this option the cookie will die 
+        //    as soon as the browser is closed)
+        maxAge: (1 * 60) * 1000, // Max age = 1 minute
+        // signed: true,// if we use secret with cookieParser
+        // for which routes should the browser send the cookie
+        path: '/p1', // This cookie will create only to this path
+        // SameSite: 'Lax'
+    };
+    res.cookie('cookieForPath_P1', 'p1Cookie', cookieConfig1);
+    console.log("You just created cookie -> P1");
 
+    next();
+});
 
-// //   This Middleware will handle EVERY Request that our server receives
-// app.use(function (req, res, next) {
-//     console.log(`received Request: ${req.method} , ${req.url}`);
-//     next(); // <------------------------ WE MUST CALL next() in every middleware
-// });
-// app.use(function (req, res, next) {
-//     console.log(`Middleware 2: ${req.method} , ${req.url}`);
-//     next(); // <------------------------ WE MUST CALL next() in every middleware
-// });
+// 1)
+app.get('/hello', (req, res) => {
+    res.send('Hello!');
+});
 
-// app.use(function (req, res, next) {
-//     console.log(`Middleware 3: ${req.ip} , ${req.query.index}`);
-//     next(); // <------------------------ WE MUST CALL next() in every middleware
-// });
+// 2)
+app.get('/home', (req, res) => {
+    if (req.cookies.hasBeenHere) { // Check if cookie already created
+        res.json({ "Cookie": req.cookies.hasBeenHere });
+    } else { // Creating new cookie
+        res.cookie('hasBeenHere', new Date().toLocaleTimeString());
+        res.json({ message: "Cookie has been set!" });
+    }
+});
 
-// app.get('/hello', (req, res) => {
-//     res.send("hello");
-// });
+// 3)
+app.get('/login', (req, res) => {
+    if (!req.cookies.isActive) {
+        res.cookie('isActive', Date.now());
+        res.json({ "You just created new cookie": req.cookies.isActive });
 
+    } else {
+        res.cookie('isActive', Date.now());
+        res.json({ "You just created cookie": req.cookies.isActive });
+    }
+});
 
-// // // Middleware 3
+// 4)
+app.get('/temp', (req, res) => {
+    const cookieConfig1 = {
+        // do not allow accessing cookie in client side js
+        // (using document.cookie)
+        //httpOnly: true,
+        //secure: true, // send only over https 
+        // ttl in seconds (without this option the cookie will die 
+        //    as soon as the browser is closed)
+        maxAge: (0.1 * 60) * 1000
+        // signed: true,// if we use secret with cookieParser
+        // for which routes should the browser send the cookie
+        // path: '/',
+        // SameSite: 'Lax'
+    };
+    res.cookie('mycookiesigned', 'val3', cookieConfig1);
+    res.send("Hello");
+});
 
-// app.use('/auth', function (req, res, next) { // <--------------------------------- Classified path to check it user is logeed in
-//     console.log(`received Request for /site2: ${req.method} , ${req.url}`);
-//     next();
-// });
+// 5)
+app.get('/p1', (req, res) => {
+    res.json({ "Cookie created!": req.cookies.cookieForPath_P1 });
+});
 
-// app.get('/auth/reports', (req, res) => {
-//     res.send("Secret reports");
-// });
-
-// app.get('/auth/emolyessData', (req, res) => {
-//     res.send("Secret employees data");
-// });
-
-
-// app.get('/stamData', (req, res) => {
-//     res.send("Secret employees data");
-// });
-
-
-
-
-// Headers & Cokies 
-// One Header
-// app.get('/hello', (req, res) => {
-//     res.header('some-header-name-I-like', 'hello');
-//     res.send();
-// });
-
-// // Two Headers
-
-// app.get('/hello', (req, res) => {
-//     // res.set({field : value, field : value, ...})
-//     //  We can use Express's set method to set response headers 
-//     res.set({
-//         'Content-Type': 'text/html',
-//         // 'Content-Length': '95' // obviously not correct (it is 20) <---------- If egnored express() add it automaticly
-//     })
-//         // you MUST use end (do NOT use send)
-//         //  otherwise, Express is going to override your headers
-//         //   try it with send and you will see the the 'Content-Length'
-//         //    will be changed 
-//         .end("<h1>hello world</h1>");
-// });
+app.get('/p2', (req, res) => {
+    res.json({ "Cookie not created!": false });
+});
 
 
-
-// // Another way to set the type of the content
-// // the following code will set it to 
-// // text/html; charset=utf-8
-// // app.get('/hello', (req, res) => {
-// //     res.type('.html').send();
-// // })
-// // And this code will set the type to
-// // image/png
-// app.get('/hello', (req, res) => {
-//     res.type('.png').download('./files/tree.png');
-// })
-
-
-// // Reading headers that client send to us
-
-// app.get('/hello', function (req, res) {
-//     // Prints all the headers and their values
-//     console.log(req.headers);
-//     // Print the value of header 'my_header'
-//     console.log(req.headers['user-agent']); // <----------------- Who send the http get - Chrome/android/ios/edge
-//     res.send();
-// });
-const flights = {
-    'TLV-EWR': 300,
-    'TLV-CDG': 45,
-    'TLV-LHR': 30,
-    'TLV-VIE': 50,
-
-}
-// // Coockies - Text with key & value
-// app.get('/hello', (req, res) => {
-//     let count = (req.cookies && parseInt(req.cookies.myCookie) + 1) || 0;
-//     res.cookie('myCookie', count);
-//     res.send(`You have been here ${count} times`)
-// });
-
-
-app.get('/flights', (req, res) => {
-    let currentTime = new Date();
-    let currentTimeFormatted = currentTime.toTimeString().split(' ')[0];
-    res.cookie('myCookie', currentTimeFormatted);
-    res.send(`The last time you visit was at ${currentTimeFormatted}`);
-
+// 6)
+app.get('/getSecretCookie', (req, res) => {
+    const cookieConfig1 = {
+        // do not allow accessing cookie in client side js
+        // (using document.cookie)
+        //httpOnly: true,
+        //secure: true, // send only over https 
+        // ttl in seconds (without this option the cookie will die 
+        //    as soon as the browser is closed)
+        //maxAge: (0.1 * 60) * 1000
+        signed: true,// if we use secret with cookieParser
+        // for which routes should the browser send the cookie
+        // path: '/',
+        // SameSite: 'Lax'
+    };
+    res.cookie('mycookiesigned', 'singedCoockie', cookieConfig1);
+    res.send({ "You created signed cookie": req.signedCookies.mycookiesigned });
 
 });
 
+app.get('/sendSecretCookie', (req, res) => {
+    if (req.signedCookies.mycookiesigned) {
+        res.json({ "Singed Cookie": req.signedCookies.mycookiesigned });
+    } else {
+        res.send("Don't mess with my cookie!");
+    }
+
+});
+
+
+// Server listner port 
 app.listen(port, () => {
     console.log(`Server listening at http://localhost:${port}`);
 });
